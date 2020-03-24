@@ -22,7 +22,7 @@ class ClientTerminal:
         self.dialog_box.scrollok(True)
         self.inner_input = curses.newwin(self.input_height, curses.COLS, curses.LINES - self.input_height, 0)
         self.inner_input.keypad(True)
-        self.title_box.addstr('SERVER NAME #CHANNEL', curses.A_REVERSE)
+        self.title_box.addstr('TITLE', curses.A_REVERSE)
         self.title_box.refresh()
 
     def end(self):
@@ -42,7 +42,7 @@ class ClientTerminal:
             the_input += ks
             self.inner_input.addstr(ks)
             self.inner_input.refresh()
-        self.println()
+        self.println(the_input)
         self.inner_input.clear()
         self.inner_input.refresh()
         return the_input

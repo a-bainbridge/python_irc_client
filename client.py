@@ -30,8 +30,9 @@ class Server:
         # user stuff
         self.current_channel = Server.DEFAULT_CHANNEL
 
-        # other stuff
+        # logging stuff
         self.logger = ServerLogger(host)
+        self.on_info: Callable[[str], None] = None
 
     def connect(self) -> bool:  # successful?
         start_time, end_time = 0, 0
@@ -94,7 +95,7 @@ class Server:
             if client_terminal is None:
                 inn = input()
             else:
-                inn = client_terminal.input(' > ')
+                inn = client_terminal.input('%s > '%self.current_channel)
             if inn.rstrip() == 'exit':
                 self.logger.info('exiting . . .')
                 break
@@ -156,6 +157,10 @@ class Server:
 
     def info(self, content: str) -> None:
         self.logger.info(content)
+        if self.on_info is not None:
+            self.on_info(content)
+    def set_on_info(self, callback:Callable[[str], None]) -> None:
+        self.on_info = callback
 
     """
     blocking function that waits for the server to be in a certain condition
@@ -202,18 +207,21 @@ def get_config() -> dict:
 
 if __name__ == '__main__':
     ct = ClientTerminal()
+    ct.set_title("Veggiebob's IRC Client")
     all_servers = get_config()
     if len(all_servers.keys()) == 0:
         ct.println('no servers!')
         sys.exit()
-    host_name = input('enter server name from any of [%s]:\n' % (', '.join([s for s in all_servers.keys()])))
+    host_name = ct.input('enter server name from any of [%s]:\n' % (', '.join([s for s in all_servers.keys()])))
     try:
         serv = all_servers[host_name]
         serv['hostname'] = host_name
     except:
         ct.println('unable to find data on host %s' % host_name)
         sys.exit()
+    ct.set_title(host_name)
     current_server = Server(**serv)  # needs host, port, username and nickname
+    current_server.set_on_info(lambda info: ct.println(info)) # pipe infos in the server to the console
     current_server.info('connecting . . .')
     current_server.connect()
     if current_server.ready():
@@ -221,10 +229,14 @@ if __name__ == '__main__':
         current_server.send_command('JOIN', ['#general'])
         # this assumes that the server will send a join message back saying what channel you're in
         # and the server object should react and update
-        current_server.waitfor(lambda server: server.get_current_channel() == '#general', timeout=1.0)
+        if not current_server.waitfor(lambda server: server.get_current_channel() == '#general', timeout=1.0):
+            current_server.info("welp you're not in general")
         current_server.send_message('hello')
-        current_server.stream_input()
+        current_server.stream_input(ct)
         current_server.disconnect()
     else:
         ct.println('server status: ')
         ct.println(current_server.status())
+    ct.println("game over. press any key to continue")
+    ct.pause()
+    ct.end()

@@ -28,6 +28,7 @@ class CommandResponse:
 
     def handle_response(self, response: 'ResponseHandler', server: Server) -> None:
         # https://tools.ietf.org/html/rfc2812#section-5
+        server.info('response gotten: %s'%str(response))
         if self.number == 432:  # bad nickname
             server.info('bad nick!')
         elif self.number == 1:  # welcome
@@ -99,6 +100,7 @@ class ResponseHandler:
             if c.call_safe(self, server): return True
         if cmd == 'ping':
             server.send_command('PONG')
+            server.info("pong'd")
         elif cmd == 'notice':
             server.info('NOTICE: ' + self.content)
         elif cmd == 'cap':
