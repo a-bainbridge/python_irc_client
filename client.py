@@ -1,18 +1,18 @@
 import socket, types, time, threading, os, configparser
 import sys
 
+from curses_wrapper import ClientTerminal
 from handlers import *
 
 # https://modern.ircdocs.horse/
 from loggers import ServerLogger
 
 
-class Navigation: # todo: navigation in Server class
-    def __init__(self, current_channel: str = ''):
-        self.current_channel = current_channel
-
 class Server:
+    DEFAULT_CHANNEL = "none"
+
     def __init__(self, host: str, port: int, username: str, nickname: str, password: str = '', hostname: str = ''):
+        # server stuff
         self.hostname = hostname
         self.host = host
         self.port = int(port)
@@ -20,12 +20,17 @@ class Server:
         self.nickname = nickname
         self.username = username
 
+        # connection stuff
         self.sock: socket.socket = None
         self.listen_thread: threading.Thread = None
         self.connected = False
         self.registered = False
         self.listening = False
 
+        # user stuff
+        self.current_channel = Server.DEFAULT_CHANNEL
+
+        # other stuff
         self.logger = ServerLogger(host)
 
     def connect(self) -> bool:  # successful?
@@ -36,12 +41,12 @@ class Server:
             self.sock.connect((self.host, self.port))
             end_time = time.perf_counter()
             self.connected = True
-            self.logger.info('connected in %ss'%(end_time-start_time))
+            self.logger.info('connected in %ss' % (end_time - start_time))
             self.on_successful_connect()
             return True
         except (ConnectionError, TimeoutError) as e:
             end_time = time.perf_counter()
-            self.logger.info('failed to connect (%ss) to %s at %s' % (end_time-start_time, self.hostname, self.host))
+            self.logger.info('failed to connect (%ss) to %s at %s' % (end_time - start_time, self.hostname, self.host))
             return False
 
     def on_successful_connect(self) -> None:
@@ -55,8 +60,8 @@ class Server:
 
     def continuous_listen(self):
         while True:
-            message = self.get_raw_message(1024) # hm
-            response:ResponseHandler = ResponseHandler.parse_response(message)
+            message = self.get_raw_message(1024)  # hm
+            response: ResponseHandler = ResponseHandler.parse_response(message)
             ResponseHandler.handle_response(response, self)
             if not self.listening:
                 break
@@ -83,14 +88,17 @@ class Server:
         response = response.decode(encoding='UTF-8')
         return response
 
-    def stream_input(self, nav: Navigation):
+    def stream_input(self, client_terminal: ClientTerminal=None):
         self.logger.info('type "exit" to exit streaming')
         while True:
-            inn = input()
+            if client_terminal is None:
+                inn = input()
+            else:
+                inn = client_terminal.input(' > ')
             if inn.rstrip() == 'exit':
                 self.logger.info('exiting . . .')
                 break
-            self.send_message(inn, nav)
+            self.send_message(inn)
 
     def send_command(self, command: str, args: list = (), contents: str = '') -> None:
         a = ' '.join([str(i) for i in args])
@@ -101,8 +109,12 @@ class Server:
         else:
             self.send_str('%s%s :%s' % (command, a, contents))
 
-    def send_message(self, message: str, nav: Navigation) -> None:
-        self.send_command('PRIVMSG', ['#%s' % nav.current_channel], contents=message)
+    def send_message(self, message: str) -> None:
+        self.send_command(
+            'PRIVMSG',
+            ['#%s' % self.current_channel] if self.current_channel != Server.DEFAULT_CHANNEL else [],
+            contents=message
+        )
 
     def send_str(self, message: str):
         if self.connected:
@@ -133,13 +145,33 @@ class Server:
         self.connected = False
         self.registered = False
 
+    def get_current_channel(self) -> str:
+        return self.current_channel
+
     def ready(self):
         return self.connected and self.registered and self.listening
 
     def status(self):
         return 'Connected: %s\nRegistered: %s\nListening: %s' % (self.connected, self.registered, self.listening)
+
     def info(self, content: str) -> None:
         self.logger.info(content)
+
+    """
+    blocking function that waits for the server to be in a certain condition
+    @param condition: a callable function taking in the server (itself), and returning a bool: True if it is DONE waiting, else False
+    @param timeout: float, number of seconds before breaking after no condition
+    @return boolean: True if condition was reached, False if timeout was reached
+    """
+    def waitfor (self, condition:Callable[['Server'], bool], timeout:float=1) -> bool:
+        t1 = time.perf_counter()
+        while True:
+            if condition(self):
+                return True
+            t2 = time.perf_counter()
+            if t2 - t1 > timeout:
+                return False
+
     def __str__(self) -> str:
         return \
             f"""
@@ -148,48 +180,51 @@ class Server:
         {self.status()}
         """
 
+
 def get_config() -> dict:
     try:
         config_parser = configparser.ConfigParser()
         config_parser.read('config/servers.ini', encoding="UTF-8")
     except:
         print('you must have a config/servers.ini file')
-        return {}
+        sys.exit()
     out = {}
     for server in config_parser.sections():
         server_name = str(server)
         out[server_name] = {}
         for key in config_parser[server_name]:
             value = config_parser[server_name][key]
-            if key=='port':
+            if key == 'port':
                 value = int(value)
             out[server_name][key] = value
     return out
 
 
 if __name__ == '__main__':
+    ct = ClientTerminal()
     all_servers = get_config()
     if len(all_servers.keys()) == 0:
-        print('no servers!')
+        ct.println('no servers!')
         sys.exit()
-    host_name = input('enter server name from any of [%s]:\n'%(', '.join([s for s in all_servers.keys()])))
+    host_name = input('enter server name from any of [%s]:\n' % (', '.join([s for s in all_servers.keys()])))
     try:
         serv = all_servers[host_name]
         serv['hostname'] = host_name
     except:
-        print('unable to find data on host %s'%host_name)
+        ct.println('unable to find data on host %s' % host_name)
         sys.exit()
-    current_server = Server(**serv) # needs host, port, username and nickname
-    me = Navigation('')
+    current_server = Server(**serv)  # needs host, port, username and nickname
     current_server.info('connecting . . .')
     current_server.connect()
     if current_server.ready():
         current_server.info('logged in as %s (%s)' % (current_server.nickname, current_server.username))
         current_server.send_command('JOIN', ['#general'])
-        me.current_channel = 'general'
-        current_server.send_message('hello', me)
-        current_server.stream_input(me)
+        # this assumes that the server will send a join message back saying what channel you're in
+        # and the server object should react and update
+        current_server.waitfor(lambda server: server.get_current_channel() == '#general', timeout=1.0)
+        current_server.send_message('hello')
+        current_server.stream_input()
         current_server.disconnect()
     else:
-        print('server status: ')
-        print(current_server.status())
+        ct.println('server status: ')
+        ct.println(current_server.status())
