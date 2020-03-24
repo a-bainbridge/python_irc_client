@@ -99,12 +99,14 @@ class ResponseHandler:
             if c.call_safe(self, server): return True
         if cmd == 'ping':
             server.send_command('PONG')
-            print('sending pong')
+            #print('sending pong')
         elif cmd == 'notice':
             print('NOTICE: ' + self.content)
         elif cmd == 'cap':
             print('haha cap')
             server.send_str('no')
+        elif cmd == 'privmsg':
+            print(self.content) # todo: parse sources!
         else:
             print('unable to parse %s or command %s'%(self, self.command))
             return False

@@ -85,7 +85,7 @@ class Server:
     def stream_input(self, nav: Navigation):
         print('type "exit" to exit streaming')
         while True:
-            inn = input(f'{nav.current_channel} > ')
+            inn = input()
             if inn.rstrip() == 'exit':
                 print('exiting . . .')
                 break
