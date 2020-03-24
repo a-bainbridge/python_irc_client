@@ -29,17 +29,17 @@ class CommandResponse:
     def handle_response(self, response: 'ResponseHandler', server: Server) -> None:
         # https://tools.ietf.org/html/rfc2812#section-5
         if self.number == 432:  # bad nickname
-            print('bad nick!')
+            server.info('bad nick!')
         elif self.number == 1:  # welcome
-            print(response.content)
+            server.info(response.content)
         elif self.number == 2:  # another welcome message?
-            print(response.content)
+            server.info(response.content)
         elif self.number == 352:  # a general message to be logged
             user: str = response.parameters[1]
             channel: str = response.parameters[0]
-            print('%s > %s' % (user, response.content))
+            server.info('%s > %s' % (user, response.content))
         else:
-            print(response.content)
+            server.info(response.content)
 
     def __str__(self):
         return 'CommandResponse<response code: %d>' % self.number
@@ -99,16 +99,15 @@ class ResponseHandler:
             if c.call_safe(self, server): return True
         if cmd == 'ping':
             server.send_command('PONG')
-            #print('sending pong')
         elif cmd == 'notice':
-            print('NOTICE: ' + self.content)
+            server.info('NOTICE: ' + self.content)
         elif cmd == 'cap':
-            print('haha cap')
+            server.info('haha cap')
             server.send_str('no')
         elif cmd == 'privmsg':
-            print(self.content) # todo: parse sources!
+            server.info(self.content) # todo: parse sources!
         else:
-            print('unable to parse %s or command %s'%(self, self.command))
+            server.info('unable to parse %s or command %s'%(self, self.command))
             return False
 
     def __init__(self, **kwargs):  # remove standard marks

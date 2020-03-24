@@ -4,9 +4,10 @@ import sys
 from handlers import *
 
 # https://modern.ircdocs.horse/
+from loggers import ServerLogger
 
 
-class Navigation:
+class Navigation: # todo: navigation in Server class
     def __init__(self, current_channel: str = ''):
         self.current_channel = current_channel
 
@@ -25,6 +26,8 @@ class Server:
         self.registered = False
         self.listening = False
 
+        self.logger = ServerLogger(host)
+
     def connect(self) -> bool:  # successful?
         start_time, end_time = 0, 0
         try:
@@ -33,12 +36,12 @@ class Server:
             self.sock.connect((self.host, self.port))
             end_time = time.perf_counter()
             self.connected = True
-            print('connected in %ss'%(end_time-start_time))
+            self.logger.info('connected in %ss'%(end_time-start_time))
             self.on_successful_connect()
             return True
         except (ConnectionError, TimeoutError) as e:
             end_time = time.perf_counter()
-            print('failed to connect (%ss) to %s at %s' % (end_time-start_time, self.hostname, self.host))
+            self.logger.info('failed to connect (%ss) to %s at %s' % (end_time-start_time, self.hostname, self.host))
             return False
 
     def on_successful_connect(self) -> None:
@@ -69,25 +72,23 @@ class Server:
         while True:
             latest = self.sock.recv(1)
             if last == b'\r' and latest == b'\n':
-                # print('BREAKING BECAUSE OF \\r\\n')
                 response = response[:-1]
                 break
             response += latest
             timepassed = time.perf_counter() - starttime
             if timepassed > timeout:
-                print('timeout of %s passed with time %s' % (timeout, timepassed))
+                self.logger.info('timeout of %s passed with time %s' % (timeout, timepassed))
                 return ''
             last = latest
         response = response.decode(encoding='UTF-8')
-        # print('got a string %s'%(str(response)))
         return response
 
     def stream_input(self, nav: Navigation):
-        print('type "exit" to exit streaming')
+        self.logger.info('type "exit" to exit streaming')
         while True:
             inn = input()
             if inn.rstrip() == 'exit':
-                print('exiting . . .')
+                self.logger.info('exiting . . .')
                 break
             self.send_message(inn, nav)
 
@@ -137,7 +138,8 @@ class Server:
 
     def status(self):
         return 'Connected: %s\nRegistered: %s\nListening: %s' % (self.connected, self.registered, self.listening)
-
+    def info(self, content: str) -> None:
+        self.logger.info(content)
     def __str__(self) -> str:
         return \
             f"""
@@ -179,10 +181,10 @@ if __name__ == '__main__':
         sys.exit()
     current_server = Server(**serv) # needs host, port, username and nickname
     me = Navigation('')
-    print('connecting . . .')
+    current_server.info('connecting . . .')
     current_server.connect()
     if current_server.ready():
-        print('logged in as %s (%s)' % (current_server.nickname, current_server.username))
+        current_server.info('logged in as %s (%s)' % (current_server.nickname, current_server.username))
         current_server.send_command('JOIN', ['#general'])
         me.current_channel = 'general'
         current_server.send_message('hello', me)

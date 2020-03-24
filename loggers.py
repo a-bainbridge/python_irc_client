@@ -47,7 +47,7 @@ class that has collections of loggers designated to channels and dms, specific t
 class ServerLogger:
     DEFAULT = 'info'
 
-    def __init__(self, name:str):
+    def __init__(self, name: str):
         self.name = name
         self.loggers: Dict[str, Logger] = {
             ServerLogger.DEFAULT: Logger(ServerLogger.DEFAULT)
@@ -81,20 +81,27 @@ class ServerLogger:
 class that has a collection of server loggers, with loggers for channels, dms, and junk
 """
 
+
 class ClientLogger:
     DEFAULT = 'any'
+
     def __init__(self):
-        self.server_loggers:Dict[str, ServerLogger] = {
+        self.server_loggers: Dict[str, ServerLogger] = {
             ClientLogger.DEFAULT: ServerLogger(ClientLogger.DEFAULT)
         }
-    def create_logger(self, name:str) -> ServerLogger:
+
+    def create_logger(self, name: str) -> ServerLogger:
         if name in self.server_loggers:
-            print('ServerLogger %s already exists!'%name)
+            print('ServerLogger %s already exists!' % name)
         else:
             self.server_loggers[name] = ServerLogger(name)
         return self.server_loggers[name]
-    def get_logger(self, name:str=DEFAULT) -> ServerLogger:
+
+    def get_logger(self, name: str = DEFAULT) -> ServerLogger:
         if name in self.server_loggers:
             return self.server_loggers[name]
         else:
             return self.create_logger(name)
+
+    def info(self, content: str) -> None:
+        self.get_logger().info(content)
